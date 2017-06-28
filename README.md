@@ -8,3 +8,4 @@ Collects DHT sensor readings and export them as Prometheus metrics
 - Daemonise properly
 - Setup and packaging stuff
 - Publish to PyPI?
+- Add multiroom support with a flagged label
