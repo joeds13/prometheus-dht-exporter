@@ -1,58 +1,92 @@
 #! /usr/bin/env python
 
-import Adafruit_DHT as dht
 import argparse
 import sys
 import time
 
+import Adafruit_DHT as dht
+
 from prometheus_client import Gauge
 from prometheus_client import start_http_server
-
-TEMPERATURE_GAUGE = Gauge('home_temperature', 'Current temperature', ['room'])
-RELATIVE_HUMIDITY_GAUGE = Gauge('home_relative_humidity', 'Current relative humidity', ['room'])
-ABSOLUTE_HUMIDITY_GAUGE = Gauge('home_absolute_humidity', 'Current absolute humidity', ['room'])
-
-sensor_args = {'11': dht.DHT11, '22': dht.DHT22, '2302': dht.AM2302}
 
 
 def calculate_absolute_humidity(_relative_humidity, _temperature):
     return (6.112 * ((17.67 * _temperature) / (_temperature + 243.5)) * _relative_humidity * 2.1674) / (273.15 + _temperature)
 
 
-def update_metrics():
-    if sensor in sensor_args:
-        relative_humidity, temperature = dht.read_retry(sensor_args[sensor], pin)
-        TEMPERATURE_GAUGE.labels(room).set("{0:0.1f}".format(temperature))
-        RELATIVE_HUMIDITY_GAUGE.labels(room).set("{0:0.1f}".format(relative_humidity))
+def get_readings(_sensor_connection):
+    temperature = None
+    relative_humidity = None
+    absolute_humidity = None
 
-    if relative_humidity is not None and temperature is not None:
-        absolute_humidity = calculate_absolute_humidity(relative_humidity, temperature)
-        ABSOLUTE_HUMIDITY_GAUGE.labels(room).set("{0:0.2f}".format(absolute_humidity))
+    if _sensor_connection == "gpio":
+        if sensor_version in sensor_args:
+            relative_humidity, temperature = dht.read_retry(sensor_args[sensor_version], sensor_pin)
 
-    print('Temp={0:0.1f}*  Relative Humidity={1:0.1f}%  Absolute Humidity={2:0.2f}'.format(temperature,
-                                                                                           relative_humidity, absolute_humidity))
+        if relative_humidity is not None and temperature is not None:
+            absolute_humidity = calculate_absolute_humidity(relative_humidity, temperature)
 
-parser = argparse.ArgumentParser(description='Collects DHT sensor readings and export them as Prometheus metrics')
-parser.add_argument('--sensor', dest='sensor', type=str, metavar='[11|22|2302]', required=True, help='DHT sensor type')
-parser.add_argument('--pin', dest='pin', type=str, metavar='N', required=True, help='GPIO Pin connected to the sensor')
-parser.add_argument('--room', dest='room', type=str, metavar='<room name>',
-                    default="None", help='Specify a specific room')
-parser.add_argument('--listen-port', dest='port', type=str, metavar='N',
-                    default="1337", help='Listen port for Prometheus metrics endpoint')
+    if _sensor_connection == "envirophat":
+        temperature = weather.temperature()
 
-args = parser.parse_args()
+    return temperature, relative_humidity, absolute_humidity
 
-pin = args.pin
-port = int(args.port)
-relative_humidity = None
-room = args.room
-sensor = args.sensor
-temperature = None
+
+def update_metrics(_temperature, _relative_humidity, _absolute_humidity):
+    if _temperature is not None:
+        TEMPERATURE_GAUGE.labels(room).set("{0:0.1f}".format(_temperature))
+    if _relative_humidity is not None:
+        RELATIVE_HUMIDITY_GAUGE.labels(room).set("{0:0.1f}".format(_relative_humidity))
+    if _absolute_humidity is not None:
+        ABSOLUTE_HUMIDITY_GAUGE.labels(room).set("{0:0.2f}".format(_absolute_humidity))
 
 if __name__ == '__main__':
-    print("Starting server on http://0.0.0.0:{}".format(port))
+    parser = argparse.ArgumentParser(
+        description='Collects DHT/envirophat sensor readings and exports them as Prometheus metrics')
+    parser.add_argument('--sensor-connection', type=str,
+                        metavar='[gpio|envirophat]', required=True, help='Sensor connection type')
+    parser.add_argument('--sensor-version', type=str, metavar='[11|22|2302]', help='DHT sensor version')
+    parser.add_argument('--sensor-pin', type=str, metavar='N', help='GPIO Pin connected to the sensor')
+    parser.add_argument('--room', type=str, metavar='<room name>', default="None", help='Named room for metric label')
+    parser.add_argument('--listen-port', type=int, metavar='N', default=1337,
+                        help='Listen port for Prometheus metrics endpoint')
+
+    args = parser.parse_args()
+
+    port = args.listen_port
+    room = args.room
+
+    sensor_args = {'11': dht.DHT11, '22': dht.DHT22, '2302': dht.AM2302}
+    sensor_connection = args.sensor_connection
+    sensor_pin = args.sensor_pin
+    sensor_version = args.sensor_version
+
+    if sensor_connection == "gpio":
+        # TODO make the requirement of these args better
+        if sensor_pin is None and sensor_version is None:
+            print "--sensor-pin and --sensor-version required for GPIO connection"
+            sys.exit(1)
+
+        # envirophat does not measure humidity
+        RELATIVE_HUMIDITY_GAUGE = Gauge('room_relative_humidity', 'Current room relative humidity', ['room'])
+        ABSOLUTE_HUMIDITY_GAUGE = Gauge('room_absolute_humidity', 'Current room absolute humidity', ['room'])
+    elif sensor_connection == "envirophat":
+        # selectively import envirophat as it's init fails if there's no envirophat device
+        from envirophat import weather
+    else:
+        print "Invalid sensor connection"
+        sys.exit(1)
+
+    TEMPERATURE_GAUGE = Gauge('room_temperature', 'Current room temperature', ['room'])
+
+    print "Starting server on http://0.0.0.0:{}".format(port)
     start_http_server(port)
 
-    while True:
-        update_metrics()
-        time.sleep(10)
+    try:
+        while True:
+            temperature, relative_humidity, absolute_humidity = get_readings(sensor_connection)
+            update_metrics(temperature, relative_humidity, absolute_humidity)
+            time.sleep(10)
+    except KeyboardInterrupt:
+        print "Exiting..."
+        sys.exit(0)
