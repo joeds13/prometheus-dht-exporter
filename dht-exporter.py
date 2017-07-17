@@ -54,6 +54,7 @@ if __name__ == '__main__':
     parser.add_argument('--sensor-connection', type=str,
                         metavar='[gpio|envirophat]', required=True, help='Sensor connection type')
     parser.add_argument('--sensor-version', type=str, metavar='[11|22|2302]', help='DHT sensor version')
+    parser.add_argument('--envirophat-offset', type=int, metavar='N', help='Temperature offest to apply to envirophat readings')
     parser.add_argument('--sensor-pin', type=str, metavar='N', help='GPIO Pin connected to the sensor')
     parser.add_argument('--room', type=str, metavar='<room name>', default="None", help='Named room for metric label')
     parser.add_argument('--listen-port', type=int, metavar='N', default=1337,
@@ -76,20 +77,20 @@ if __name__ == '__main__':
             sys.exit(1)
 
         # envirophat does not measure humidity
-        RELATIVE_HUMIDITY_GAUGE = Gauge('room_relative_humidity', 'Current room relative humidity', ['room'])
-        ABSOLUTE_HUMIDITY_GAUGE = Gauge('room_absolute_humidity', 'Current room absolute humidity', ['room'])
+        RELATIVE_HUMIDITY_GAUGE = Gauge('room_relative_humidity', 'Current room relative humidity (%)', ['room'])
+        ABSOLUTE_HUMIDITY_GAUGE = Gauge('room_absolute_humidity', 'Current room absolute humidity (N)', ['room'])
     elif sensor_connection == "envirophat":
         # selectively import envirophat as it's init fails if there's no envirophat device
         from envirophat import weather, light
 
         # envirophat does measure pressure and light
-        BRIGHTNESS_GAUGE = Gauge('room_brightness', 'Current room brighteness', ['room'])
-        PRESSURE_GAUGE = Gauge('room_pressure', 'Current room pressure', ['room'])
+        BRIGHTNESS_GAUGE = Gauge('room_brightness', 'Current room brighteness (?)', ['room'])
+        PRESSURE_GAUGE = Gauge('room_pressure', 'Current room pressure (Pa)', ['room'])
     else:
         print "Invalid sensor connection"
         sys.exit(1)
 
-    TEMPERATURE_GAUGE = Gauge('room_temperature', 'Current room temperature', ['room'])
+    TEMPERATURE_GAUGE = Gauge('room_temperature', 'Current room temperature (deg C)', ['room'])
 
     print "Starting server on http://0.0.0.0:{}".format(port)
     start_http_server(port)
