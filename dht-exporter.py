@@ -18,6 +18,8 @@ def get_readings(_sensor_connection):
     temperature = None
     relative_humidity = None
     absolute_humidity = None
+    brightness = None
+    pressure = None
 
     if _sensor_connection == "gpio":
         if sensor_version in sensor_args:
@@ -28,21 +30,27 @@ def get_readings(_sensor_connection):
 
     if _sensor_connection == "envirophat":
         temperature = weather.temperature()
+        brightness = light.light()
+        pressure = weather.pressure()
 
-    return temperature, relative_humidity, absolute_humidity
+    return temperature, relative_humidity, absolute_humidity, brightness, pressure
 
 
-def update_metrics(_temperature, _relative_humidity, _absolute_humidity):
+def update_metrics(_temperature, _relative_humidity, _absolute_humidity, _brightness, _pressure):
     if _temperature is not None:
         TEMPERATURE_GAUGE.labels(room).set("{0:0.1f}".format(_temperature))
     if _relative_humidity is not None:
         RELATIVE_HUMIDITY_GAUGE.labels(room).set("{0:0.1f}".format(_relative_humidity))
     if _absolute_humidity is not None:
         ABSOLUTE_HUMIDITY_GAUGE.labels(room).set("{0:0.2f}".format(_absolute_humidity))
+    if _brightness is not None:
+        BRIGHTNESS_GAUGE.labels(room).set("{0:0.2f}".format(_brightness))
+    if _pressure is not None:
+        PRESSURE_GAUGE.labels(room).set("{0:0.2f}".format(_pressure))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='Collects DHT/envirophat sensor readings and exports them as Prometheus metrics')
+        description='Collects DHT/envirophat environmental sensor readings and exports them as Prometheus metrics')
     parser.add_argument('--sensor-connection', type=str,
                         metavar='[gpio|envirophat]', required=True, help='Sensor connection type')
     parser.add_argument('--sensor-version', type=str, metavar='[11|22|2302]', help='DHT sensor version')
@@ -72,7 +80,11 @@ if __name__ == '__main__':
         ABSOLUTE_HUMIDITY_GAUGE = Gauge('room_absolute_humidity', 'Current room absolute humidity', ['room'])
     elif sensor_connection == "envirophat":
         # selectively import envirophat as it's init fails if there's no envirophat device
-        from envirophat import weather
+        from envirophat import weather, light
+
+        # envirophat does measure pressure and light
+        BRIGHTNESS_GAUGE = Gauge('room_brightness', 'Current room brighteness', ['room'])
+        PRESSURE_GAUGE = Gauge('room_pressure', 'Current room pressure', ['room'])
     else:
         print "Invalid sensor connection"
         sys.exit(1)
@@ -84,8 +96,8 @@ if __name__ == '__main__':
 
     try:
         while True:
-            temperature, relative_humidity, absolute_humidity = get_readings(sensor_connection)
-            update_metrics(temperature, relative_humidity, absolute_humidity)
+            temperature, relative_humidity, absolute_humidity, brightness, pressure = get_readings(sensor_connection)
+            update_metrics(temperature, relative_humidity, absolute_humidity, brightness, pressure)
             time.sleep(10)
     except KeyboardInterrupt:
         print "Exiting..."

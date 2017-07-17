@@ -1,7 +1,7 @@
 prometheus-dht-exporter
 ================================================================================
 
-Collects DHT/envirophat sensor readings and exports them as Prometheus metrics
+Collects DHT/envirophat environmental sensor readings and exports them as Prometheus metrics
 
 ## Usage
 
