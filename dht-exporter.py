@@ -29,7 +29,9 @@ def get_readings(_sensor_connection):
             absolute_humidity = calculate_absolute_humidity(relative_humidity, temperature)
 
     if _sensor_connection == "envirophat":
-        temperature = weather.temperature()
+        # As the envirophat sits on the Pi, allow a configurable offset due to being so close to the toasty CPU
+        # TODO make the offset intelligent
+        temperature = weather.temperature() - envirophat_temperature_offset
         brightness = light.light()
         pressure = weather.pressure()
 
@@ -54,8 +56,9 @@ if __name__ == '__main__':
     parser.add_argument('--sensor-connection', type=str,
                         metavar='[gpio|envirophat]', required=True, help='Sensor connection type')
     parser.add_argument('--sensor-version', type=str, metavar='[11|22|2302]', help='DHT sensor version')
-    parser.add_argument('--envirophat-offset', type=int, metavar='N', help='Temperature offest to apply to envirophat readings')
     parser.add_argument('--sensor-pin', type=str, metavar='N', help='GPIO Pin connected to the sensor')
+    parser.add_argument('--envirophat-temperature-offset', type=int, metavar='N', default=0,
+                        help='Temperature offest to apply to envirophat readings')
     parser.add_argument('--room', type=str, metavar='<room name>', default="None", help='Named room for metric label')
     parser.add_argument('--listen-port', type=int, metavar='N', default=1337,
                         help='Listen port for Prometheus metrics endpoint')
@@ -69,6 +72,8 @@ if __name__ == '__main__':
     sensor_connection = args.sensor_connection
     sensor_pin = args.sensor_pin
     sensor_version = args.sensor_version
+
+    envirophat_temperature_offset = args.envirophat_temperature_offset
 
     if sensor_connection == "gpio":
         # TODO make the requirement of these args better

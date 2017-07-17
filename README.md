@@ -8,9 +8,11 @@ Collects DHT/envirophat environmental sensor readings and exports them as Promet
 ```
 usage: dht-exporter.py [-h] --sensor-connection [gpio|envirophat]
                        [--sensor-version [11|22|2302]] [--sensor-pin N]
+                       [--envirophat-temperature-offset N]
                        [--room <room name>] [--listen-port N]
 ```
 
+If `--sensor-connection` is `envirophat`, `--envirophat-temperature-offset` is available
 If `--sensor-connection` is `gpio`, `--sensor-version` and `--sensor-pin` are required
 
 ## To Do
